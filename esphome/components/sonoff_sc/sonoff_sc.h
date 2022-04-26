@@ -20,12 +20,13 @@ class SonoffSCComponent : public Component, public uart::UARTDevice {
   void set_humidity_threshold(uint32_t humidity_threshold) { humidity_threshold_ = humidity_threshold; }
   void set_temperature_threshold(uint32_t temperature_threshold) { temperature_threshold_ = temperature_threshold; }
 
+  void setup() override;
   void loop() override;
   float get_setup_priority() const override;
   void dump_config() override;
 
  protected:
-  void parse_data_();
+  int parse_data_();
   int get_value_for_(const std::string &command, const std::string &prefix);
   void process_status_request_();
 

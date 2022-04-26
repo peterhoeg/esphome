@@ -11,6 +11,10 @@ namespace sonoff_sc {
 
 static const char *const TAG = "sonoff_sc";
 
+void SonoffSCComponent::setup() {
+  this->write_str("AT+START\x1b");
+}
+
 void SonoffSCComponent::loop() {
   const uint32_t now = millis();
   if (now - this->last_transmission_ >= 500) {
@@ -25,9 +29,13 @@ void SonoffSCComponent::loop() {
   while (this->available() != 0) {
     uint8_t byte = this->read();
     if (byte == 0x1b) {
-      this->parse_data_();
-      this->status_clear_warning();
-      this->raw_data_index_ = 0;
+      if (this->parse_data_() == 0) {
+        this->write_str("AT+SEND=ok\x1b");
+        this->status_clear_warning();
+        this->raw_data_index_ = 0;
+      } else {
+        this->write_str("AT+SEND=fail\x1b");
+      }
     } else {
       this->raw_data_[this->raw_data_index_++] = byte;
       if (this->raw_data_index_ > 128) {
@@ -54,7 +62,7 @@ int SonoffSCComponent::get_value_for_(const std::string &command, const std::str
   return strtol(value_str.c_str(), nullptr, 10);
 }
 
-void SonoffSCComponent::parse_data_() {
+int SonoffSCComponent::parse_data_() {
   auto command = std::string((char *) &this->raw_data_, (size_t) this->raw_data_index_);
   ESP_LOGVV(TAG, "Sonoff SC Data: %s", command.c_str());
 
@@ -86,16 +94,19 @@ void SonoffSCComponent::parse_data_() {
     if (dust != -1 && this->dust_sensor_ != nullptr) {
       this->dust_sensor_->publish_state((int8_t)((10 - dust) / 9.0F * 100));
     }
-
   } else if (command == "AT+NOTIFY=ok") {
     // not supported
+    return -1;
   } else {
     ESP_LOGV(TAG, "Unknown command received");
+    return -1;
   }
+
+  return 0;
 }
 
 void SonoffSCComponent::process_status_request_() {
-  this->write_str("AT+STATUS\x1b");
+  this->write_str("AT+STATUS=4\x1b");
   const uint32_t now = millis();
 
   if (now - this->last_update_time_ > 2 * this->update_interval_sec_) {
